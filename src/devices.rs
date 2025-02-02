@@ -23,48 +23,74 @@ impl DeviceId {
             Radar => Ok("RD".to_string()),
             None => Err("Invalid input".to_string()),
         }
-    }    
+    }
 }
 
 #[allow(dead_code)]
-struct NmeaMessage<T> {
+struct DeviceMessage<T> {
     device_id: DeviceId,
     message_body: T,
 }
-
+// TODO: rework functions to return Result
 #[allow(dead_code)]
-impl<T> NmeaMessage<T>
+impl<T> DeviceMessage<T>
 where
     T: NmeaBuff,
 {
-    pub fn new(id: DeviceId, payload: T) -> NmeaMessage<T> {
-        NmeaMessage {
+    /// Create a new NMEA message
+    pub fn new(id: DeviceId, payload: T) -> DeviceMessage<T> {
+        DeviceMessage {
             device_id: id,
             message_body: payload,
         }
     }
 
-    pub fn empty(payload: T) -> NmeaMessage<T> {
-        NmeaMessage {
+    /// Create an empty NMEA message
+    pub fn empty(payload: T) -> DeviceMessage<T> {
+        DeviceMessage {
             device_id: DeviceId::None,
             message_body: payload,
         }
     }
 
+    /// Calculate the checksum of the NMEA message
     fn checksum(msg: String) -> u8 {
-        let sum: u32 = msg.into_bytes().iter().map(|x| *x as u32).sum();
-        sum as u8
+        let sum = msg[1..msg.len() - 1].to_string().into_bytes().iter().fold(0, |acc, x| acc ^ x);
+        sum
     }
 
     pub fn create_message(&self) -> String {
         let payload = self.message_body.as_string();
         let message_body = format!("${}{}*", self.device_id.id_string().unwrap(), payload);
-        let message = format!("{}{:#02x}\r\n", message_body.clone(), NmeaMessage::<T>::checksum(message_body)); 
+        let message = format!("{}{:02X}\r\n", message_body.clone(), DeviceMessage::<T>::checksum(message_body));
         message
     }
 
     // pub fn parse_message(msg: String) -> Self {
-    //     let ret_data = 
+    //     let ret_data =
 
     // }
+}
+
+#[cfg(test)]
+mod testy{
+    use super::*;
+    use crate::messeges::NmeaMessages;
+
+    #[test]
+    fn device_message() {
+        let gga = NmeaMessages::new_gga();
+        let nmea_gga = DeviceMessage::new(DeviceId::GPS, gga);
+        let gll: NmeaMessages = NmeaMessages::new_gll();
+        let nmea_gll = DeviceMessage::new(DeviceId::GPS, gll);
+        let gsa = NmeaMessages::new_gsa();
+        let nmea_gsa = DeviceMessage::new(DeviceId::GPS, gsa);
+        let gsv = NmeaMessages::new_gsv();
+        let nmea_gsv = DeviceMessage::new(DeviceId::GPS, gsv);
+
+        assert_eq!(nmea_gga.create_message(), "$GPGGA,0,N,0,E,000000,0,0,0,0,M,0,M,0,0*6D\r\n".to_string());
+        assert_eq!(nmea_gll.create_message(), "$GPGLL,0,N,0,E,000000,A*1A\r\n".to_string());
+        assert_eq!(nmea_gsa.create_message(), "$GPGSA,A,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*2E\r\n".to_string());
+        assert_eq!(nmea_gsv.create_message(), "$GPGSV,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*49\r\n".to_string());
+    }
 }
