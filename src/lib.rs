@@ -1,5 +1,5 @@
-pub mod messeges;
 pub mod devices;
+pub mod messeges;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
